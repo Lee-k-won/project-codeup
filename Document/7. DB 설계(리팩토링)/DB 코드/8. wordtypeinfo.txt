@@ -1,0 +1,5 @@
+insert into wordtypelist values(wordtypelist_seq.nextval,'mistypo');
+insert into wordtypelist values(wordtypelist_seq.nextval,'java.lang');
+insert into wordtypelist values(wordtypelist_seq.nextval,'java.util');
+insert into wordtypelist values(wordtypelist_seq.nextval,'java.io');
+

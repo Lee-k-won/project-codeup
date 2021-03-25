@@ -1,0 +1,83 @@
+CREATE OR REPLACE TRIGGER delete_fileexinfo_tri
+before delete on fileexinfo
+for each row
+
+begin
+update mistypoinfo
+set fileexinfocode = null
+where fileexinfocode = :old.fileexinfocode;
+
+update fileexresinfo
+set fileexinfocode = null
+where fileexinfocode = :old.fileexinfocode;
+
+end;
+/ 
+
+
+
+
+
+
+
+CREATE OR REPLACE TRIGGER delete_wordtypelist_tri
+before delete on wordtypelist
+for each row
+
+declare
+code wordtypelist.wordtypecode%TYPE;
+
+begin
+select wordtypecode INTO code
+from mistypoinfo
+group by wordtypecode;
+
+if(code = :old.wordtypecode) then
+update mistypoinfo 
+set wordtypecode = null
+where wordtypecode = :old.wordtypecode;
+
+else
+update wordexinfo
+set wordtypecode = null
+where wordtypecode = :old.wordtypecode;
+end if;
+
+end;
+/ 
+
+
+
+
+
+
+
+CREATE OR REPLACE TRIGGER delete_wordexinfo_tri
+before delete on wordexinfo
+for each row
+
+begin
+delete wordexresinfo
+where wordexinfocode = :old.wordexinfocode;
+
+end;
+/ 
+
+
+
+
+
+
+CREATE OR REPLACE TRIGGER delete_mistypoinfo_tri
+before delete on mistypoinfo
+for each row
+
+begin
+delete wordexresinfo
+where mistypoinfocode = :old.mistypoinfocode;
+
+end;
+/ 
+
+ 
+

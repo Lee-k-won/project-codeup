@@ -1,0 +1,42 @@
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,1, 1, 180000, 99, 635);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,2, 2, 200000, 61, 392);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,3, 3, 210000, 137, 814);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,4, 4, 160000, 42, 242);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,5, 5, 400000, 70, 397);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,6, 6, 560000, 98, 640);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,7, 7, 304000, 129, 788);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,8, 8, 215000, 136, 598);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,9, 9, 150000, 72,  437);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,10, 10, 500000, 132, 656);
+
+
+
+
+
+
+
+
+
+
+
+
+

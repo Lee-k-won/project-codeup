@@ -1,0 +1,42 @@
+create table wordtypelist (wordtypecode VARCHAR2(10) CONSTRAINT wordtype_code_pk PRIMARY KEY,
+ wordtypename VARCHAR2(30) CONSTRAINT wordtype_name_nn  NOT NULL);
+
+
+create table wordexinfo (wordexinfocode VARCHAR2(10) CONSTRAINT wordex_code_pk PRIMARY KEY ,
+ wordtypecode VARCHAR2(10) CONSTRAINT wordex_tpcode_fk REFERENCES wordtypelist(wordtypecode),
+ wordexcontent VARCHAR(50) CONSTRAINT wordex_content_nn NOT NULL);
+
+
+create table fileexinfo ( fileexinfocode VARCHAR2(10) CONSTRAINT fileex_code_pk PRIMARY KEY,
+ fileexinfoname VARCHAR2(30) CONSTRAINT fileex_name_nn NOT NULL,
+ fileexinfocontent VARCHAR2(4000),
+ fileexinfosourcepath VARCHAR2(100) CONSTRAINT fileex_path_nn NOT NULL,
+ fileexinfomtime NUMBER CONSTRAINT fileex_mtime_nn NOT NULL,
+ totalwordnum NUMBER CONSTRAINT fileex_wordnum_nn NOT NULL CONSTRAINT fileex_wordnum_ck CHECK(totalwordnum >= 0),
+ totalcharnum NUMBER CONSTRAINT fileex_charnum_nn NOT NULL CONSTRAINT fileex_charnum_ck CHECK(totalcharnum >= 0));
+
+
+create table mistypoinfo (mistypoinfocode VARCHAR2(10) CONSTRAINT mistypo_code_pk PRIMARY KEY,
+ wordtypecode VARCHAR2(10) CONSTRAINT mistypo_tpcode_fk REFERENCES fileexinfo(fileexinfocode),
+ fileExinfocode VARCHAR2(10) CONSTRAINT mistypo_flcode_fk REFERENCES fileexinfo(fileexinfocode),
+ mistypo VARCHAR2(50) CONSTRAINT mistypo_content_nn NOT NULL);
+
+
+create table wordexresinfo ( wordexresinfocode varchar2(10) CONSTRAINT wordres_code_pk primary key,
+ wordexinfocode varchar2(10) CONSTRAINT wordres_wdcode_fk references wordexinfo(wordexinfocode),
+ mistypoinfocode VARCHAR2(10) CONSTRAINT wordres_mpcode_fk references mistypoinfo(mistypoinfocode),
+ cuminputnum number CONSTRAINT wordres_cum_nn not null CONSTRAINT wordres_cum_ck CHECK(cuminputnum > 0),
+ mistyponum number CONSTRAINT wordres_mpnum_nn not null CONSTRAINT wordres_mpnum_ck CHECK(mistyponum >= 0));
+
+
+create table fileexresinfo (fileexresinfocode VARCHAR2(10) CONSTRAINT fileres_code_pk PRIMARY KEY,
+ fileexinfocode VARCHAR2(10) CONSTRAINT fileres_flcode_fk REFERENCES fileexinfo(fileexinfocode),
+ trialnum NUMBER CONSTRAINT fileres_try_uk UNIQUE CONSTRAINT fileres_try_nn NOT NULL,
+ typingtime NUMBER CONSTRAINT fileres_time_nn NOT NULL,
+ typedwords NUMBER CONSTRAINT fileres_word_ck CHECK(typedwords >= 0) CONSTRAINT fileres_word_nn NOT NULL,
+ typedchars NUMBER CONSTRAINT fileres_char_ck CHECK(typedchars >= 0) CONSTRAINT fileres_char_nn NOT NULL);
+
+
+create table levelinfo (levelinfocode VARCHAR2(10) CONSTRAINT level_code_pk PRIMARY KEY,
+ levelnum NUMBER CONSTRAINT level_num_nn NOT NULL CONSTRAINT level_num_ck CHECK(levelnum>=0),
+ criteria NUMBER CONSTRAINT level_crit_nn NOT NULL CONSTRAINT level_crit_ck CHECK(criteria >= 0));

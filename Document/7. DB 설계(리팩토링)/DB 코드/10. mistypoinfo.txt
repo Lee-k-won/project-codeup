@@ -1,0 +1,36 @@
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '1', 'public');
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '2', 'system');
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '3', 'void');
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '4', 'String');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '5', 'static');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '6', 'iterator');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '7', 'arraylist');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '8', 'add');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '9', 'delete');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '10', 'public');
+

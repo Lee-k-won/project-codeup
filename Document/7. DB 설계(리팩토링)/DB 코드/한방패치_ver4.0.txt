@@ -1,0 +1,1148 @@
+create table wordtypelist (wordtypecode VARCHAR2(10) CONSTRAINT wordtype_code_pk PRIMARY KEY,
+ wordtypename VARCHAR2(30) CONSTRAINT wordtype_name_nn  NOT NULL);
+
+
+create table wordexinfo (wordexinfocode VARCHAR2(10) CONSTRAINT wordex_code_pk PRIMARY KEY ,
+ wordtypecode VARCHAR2(10) CONSTRAINT wordex_tpcode_fk REFERENCES wordtypelist(wordtypecode),
+ wordexcontent VARCHAR(50) CONSTRAINT wordex_content_nn NOT NULL);
+
+
+create table fileexinfo ( fileexinfocode VARCHAR2(10) CONSTRAINT fileex_code_pk PRIMARY KEY,
+ fileexinfoname VARCHAR2(30) CONSTRAINT fileex_name_nn NOT NULL,
+ fileexinfocontent VARCHAR2(4000),
+ fileexinfosourcepath VARCHAR2(100) CONSTRAINT fileex_path_nn NOT NULL,
+ fileexinfomtime NUMBER CONSTRAINT fileex_mtime_nn NOT NULL,
+ totalwordnum NUMBER CONSTRAINT fileex_wordnum_nn NOT NULL CONSTRAINT fileex_wordnum_ck CHECK(totalwordnum >= 0),
+ totalcharnum NUMBER CONSTRAINT fileex_charnum_nn NOT NULL CONSTRAINT fileex_charnum_ck CHECK(totalcharnum >= 0));
+
+
+create table mistypoinfo (mistypoinfocode VARCHAR2(10) CONSTRAINT mistypo_code_pk PRIMARY KEY,
+ wordtypecode VARCHAR2(10) CONSTRAINT mistypo_tpcode_fk REFERENCES fileexinfo(fileexinfocode),
+ fileExinfocode VARCHAR2(10) CONSTRAINT mistypo_flcode_fk REFERENCES fileexinfo(fileexinfocode),
+ mistypo VARCHAR2(50) CONSTRAINT mistypo_content_nn NOT NULL);
+
+
+create table wordexresinfo ( wordexresinfocode varchar2(10) CONSTRAINT wordres_code_pk primary key,
+ wordexinfocode varchar2(10) CONSTRAINT wordres_wdcode_fk references wordexinfo(wordexinfocode),
+ mistypoinfocode VARCHAR2(10) CONSTRAINT wordres_mpcode_fk references mistypoinfo(mistypoinfocode),
+ cuminputnum number CONSTRAINT wordres_cum_nn not null CONSTRAINT wordres_cum_ck CHECK(cuminputnum > 0),
+ mistyponum number CONSTRAINT wordres_mpnum_nn not null CONSTRAINT wordres_mpnum_ck CHECK(mistyponum >= 0));
+
+
+create table fileexresinfo (fileexresinfocode VARCHAR2(10) CONSTRAINT fileres_code_pk PRIMARY KEY,
+ fileexinfocode VARCHAR2(10) CONSTRAINT fileres_flcode_fk REFERENCES fileexinfo(fileexinfocode),
+ trialnum NUMBER CONSTRAINT fileres_try_uk UNIQUE CONSTRAINT fileres_try_nn NOT NULL,
+ typingtime NUMBER CONSTRAINT fileres_time_nn NOT NULL,
+ typedwords NUMBER CONSTRAINT fileres_word_ck CHECK(typedwords >= 0) CONSTRAINT fileres_word_nn NOT NULL,
+ typedchars NUMBER CONSTRAINT fileres_char_ck CHECK(typedchars >= 0) CONSTRAINT fileres_char_nn NOT NULL);
+
+
+create table levelinfo (levelinfocode VARCHAR2(10) CONSTRAINT level_code_pk PRIMARY KEY,
+ levelnum NUMBER CONSTRAINT level_num_nn NOT NULL CONSTRAINT level_num_ck CHECK(levelnum>=0),
+ criteria NUMBER CONSTRAINT level_crit_nn NOT NULL CONSTRAINT level_crit_ck CHECK(criteria >= 0));
+
+CREATE SEQUENCE wordtypelist_seq INCREMENT BY 1 START WITH 1; 
+
+CREATE SEQUENCE wordexinfo_seq INCREMENT BY 1 START WITH 1; 
+
+CREATE SEQUENCE wordexresinfo_seq INCREMENT BY 1 START WITH 1; 
+
+CREATE SEQUENCE mistypoinfo_seq INCREMENT BY 1 START WITH 1; 
+
+CREATE SEQUENCE levelinfo_seq INCREMENT BY 1 START WITH 1;
+
+CREATE SEQUENCE fileexinfo_seq INCREMENT BY 1 START WITH 1;
+
+CREATE SEQUENCE fileexresinfo_seq INCREMENT BY 1 START WITH 1;
+
+
+CREATE OR REPLACE VIEW resinfo
+AS
+SELECT MIN(typingtime) mintypingtime ,fileexinfocode 
+FROM fileexresinfo
+GROUP BY fileexinfocode
+ORDER BY fileexinfocode ;
+
+
+CREATE OR REPLACE VIEW WPMAnalysisInfo
+AS
+SELECT trialNum, ROUND(typedchars/(typingtime/60000)/5,0) WPM
+from fileexresinfo
+with read only;
+
+
+CREATE OR REPLACE VIEW AnalysisInfo
+AS
+SELECT sum(f.typedChars) totalChars, sum(f.typedwords)+sum(cumInputNum) totalWords
+FROM fileexresinfo f, wordexresinfo w
+with read only;
+
+
+CREATE OR REPLACE VIEW WordsAnalysisInfo
+AS
+SELECT 
+CASE
+ WHEN wr.wordexinfocode IS NOT NULL THEN (select wordexcontent from wordexinfo wi where wr.wordexinfocode = wi.wordexinfocode)
+ WHEN wr.wordexinfocode IS NULL THEN (select mistypo from mistypoinfo mi where wr.mistypoinfocode = mi.mistypoinfocode)
+END wordexcontent,
+ round(wr.mistyponum/wr.cuminputnum*100,0) accuracy
+FROM
+wordexresinfo wr
+with read only;
+
+
+CREATE OR REPLACE VIEW simplefileExinfo
+AS
+SELECT fileExinfoName, fileExInfoCode, 
+CASE 
+WHEN totalcharnum < 500 THEN 1 
+WHEN totalcharnum < 1000 THEN 2
+WHEN totalcharnum >= 1000 THEN 3 
+END fileexinfoLevel 
+from fileexinfo;
+
+CREATE OR REPLACE TRIGGER delete_fileexinfo_tri
+before delete on fileexinfo
+for each row
+
+begin
+update mistypoinfo
+set fileexinfocode = null
+where fileexinfocode = :old.fileexinfocode;
+
+update fileexresinfo
+set fileexinfocode = null
+where fileexinfocode = :old.fileexinfocode;
+
+end;
+/ 
+
+
+
+
+
+
+
+CREATE OR REPLACE TRIGGER delete_wordtypelist_tri
+before delete on wordtypelist
+for each row
+
+declare
+code wordtypelist.wordtypecode%TYPE;
+
+begin
+select wordtypecode INTO code
+from mistypoinfo
+group by wordtypecode;
+
+if(code = :old.wordtypecode) then
+update mistypoinfo 
+set wordtypecode = null
+where wordtypecode = :old.wordtypecode;
+
+else
+update wordexinfo
+set wordtypecode = null
+where wordtypecode = :old.wordtypecode;
+end if;
+
+end;
+/ 
+
+
+
+
+
+
+
+CREATE OR REPLACE TRIGGER delete_wordexinfo_tri
+before delete on wordexinfo
+for each row
+
+begin
+delete wordexresinfo
+where wordexinfocode = :old.wordexinfocode;
+
+end;
+/ 
+
+
+
+
+
+
+CREATE OR REPLACE TRIGGER delete_mistypoinfo_tri
+before delete on mistypoinfo
+for each row
+
+begin
+delete wordexresinfo
+where mistypoinfocode = :old.mistypoinfocode;
+
+end;
+/ 
+
+ 
+
+insert into levelinfo values(levelinfo_seq.nextval,1,1000);
+insert into levelinfo values(levelinfo_seq.nextval,2,2000);
+insert into levelinfo values(levelinfo_seq.nextval,3,3000);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex1',
+'public class Account 
+{
+	private String accountNo;	
+	private String ownerName;	
+	private int balance;		
+
+	public Account(String accountNo, String ownerName,int balance)
+	{
+		this.accountNo = accountNo;
+		this.ownerName =ownerName;
+		this.balance = balance;
+	}
+	public String getAccountNo()
+	{
+		return this.accountNo;
+	}
+	public String getOwnerName()
+	{
+		return this.ownerName;
+	}
+	public int getBalance()
+	{
+		return this.balance;
+	}
+	public void setAccountNo(String accountNo)
+	{
+		this.accountNo = accountNo;
+	}
+	public void setOwnerName(String ownerName)
+	{
+		this.ownerName = ownerName;
+	}
+	public void setBalance(int balance)
+	{
+		this.balance = balance;
+	}
+	public void deposit(int amount)
+	{
+		this.balance += amount;
+	}
+	public int withdraw(int amount) throws Exception
+	{
+		if(amount > this.balance)
+		{
+			throw new Exception("\"\"잔액이 부족합니다.");
+		}
+		else
+		{
+			this.balance -= amount;
+			return amount;
+		}
+	}
+}
+',
+'C:\test\fileEx1.txt',
+1432734257758,
+99,
+635);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex2',
+'public class Accumulator 
+{
+	private	int total;
+	private int grandTotal;
+
+	public void Accumulator();
+	public void Accumulator(int total);
+
+	static
+	{
+		Accumulator.total = 0;
+	}
+	
+	public int getTotal()
+	{
+		return this.total;
+	}
+	public void setTotal(int total)
+	{
+		this.total = total;
+	}
+	public static int getGrandTotal()
+	{
+		return Accumulator.total;
+	}
+	public static void setGrandTotal(int grandTotal)
+	{
+		Accumulator.grandTotal = grandTotal;
+	}
+	public accumulate(int amount)
+	{
+		this.total +=amount;
+		accumulator.grandTotal += amount;
+	}
+}
+',
+'C:\test\fileEx2.txt',
+1432734257780,
+61,
+392);
+
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex3',
+'public class ClientInfo 
+{
+	private String name;
+	private String id;
+	private String password;
+	private String phoneNo;
+	private String address;
+
+	public ClientInfo(){};
+	public ClientInfo(String name, String id, String password)
+	{
+		this.name = name;
+		this.id = id;
+		this.password = password;
+	}
+	public ClientInfo(String name, String id, String password, String phoneNum, String address)
+	{
+		this(name, id,password);
+		this.phoneNo = phoneNum;
+		this.address = address;
+	}
+	public String getName()
+	{
+		return this.name;
+	}
+	public String getId()
+	{
+		return this.id;
+	}
+	public String getPassword()
+	{
+		return this.password;
+	}
+	public String getPhoneNo()
+	{
+		return this.phoneNo;
+	}
+	public String getAddress()
+	{
+		return this.address;
+	}
+	public void setName(String name)
+	{
+		this.name = name;
+	}
+	public void setId(String id)
+	{
+		this.id = id;
+	}
+	public void setPassword(String password)
+	{
+		this.password = password;
+	}
+	public void setPhoneNo(String phoneNo)
+	{
+		this.phoneNo = phoneNo;
+	}
+	public void setAddress(String address)
+	{
+		this.address = address;
+	}
+	public void changePassword(String password)
+	{
+		this.password = password;
+	}
+
+}
+',
+'C:\test\fileEx3.txt',
+1432734257816,
+137,
+814);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex4',
+'public class SquareTestMain 
+{
+	public static void main(String[] args) 
+	{
+		Square square1 = new Square(0);
+		Square square2 = new Square(10);
+		exceptionPrint(square1.getArea());
+		exceptionPrint(square2.getArea());
+	}
+	public static void exceptionPrint(int data)
+	{
+		if(data == -1)
+		{
+			System.out.println("데이터를 확인해주세요.");
+		}
+		else
+		{
+			System.out.println(data);
+		}
+	}
+}
+',
+'C:\test\fileEx4.txt',
+1432734257829,
+42,
+242);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex5',
+'public class PhysicalInfoTestMain 
+{
+	public static void main(String[] args) 
+	{
+		PhysicalInfo obj;
+		obj = new PhysicalInfo("해리", 10, 123.0f, 35.0f);
+		printPhysicalInfo(obj);
+		obj.update(11,145.0f, 45.0f);
+		printPhysicalInfo(obj);
+		obj.update(12,157.0f);
+		printPhysicalInfo(obj);
+		obj.update(13);
+		printPhysicalInfo(obj);
+	}
+	static void printPhysicalInfo(PhysicalInfo obj)
+	{
+		System.out.println("이름 : " + obj.getName());
+		System.out.println("나이 : "+ obj.getAge());
+		System.out.println("키 : " + obj.getHeight());
+		System.out.println("몸무게 : " + obj.getWeight());
+		System.out.println();		
+	}
+}
+',
+'C:\test\fileEx5.txt',
+1432734257850,
+70,
+397);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex6',
+'public class AppCDInfo extends CDInfo implements Lendable 
+{
+	private String borrower;
+	private String checkOutDate;
+	private byte state;
+
+
+	public AppCDInfo(){}
+	public AppCDInfo(String registerNo, String title)
+	{
+		super(registerNo, title);
+	}
+	
+	public void setBorrower(String borrower)
+	{
+		this.borrower = borrower;
+	}
+	public void setCheckOutDate(String checkOutDate)
+	{
+		this.checkOutDate = checkOutDate;
+	}
+	public String getBorrower()
+	{
+		return this.borrower;
+	}
+	public String getCheckOutDate()
+	{
+		return this.checkOutDate;
+	}
+	public void checkOut(String borrower, String date)
+	{
+		if(state !=0)
+			return;
+		this.borrower =borrower;
+		this.checkOutDate = date;
+		System.out.println(borrower +"님이 "+getTitle()+"을 빌리셨습니다.");
+		this.state = 1;
+	}
+	public void checkIn()
+	{
+		System.out.println(borrower + "님이 "+getTitle()+"을 반납하셨습니다.");
+		this.borrower = null;
+		this.checkOutDate = null;
+		this.state = 0;
+	}
+}
+',
+'C:\test\fileEx6.txt',
+1432734257875,
+98,
+640);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex7',
+'public class Dictionary implements Lendable 
+{
+	private String title;
+	private String checkOutDate;
+	private String borrower;
+	private byte state;
+
+	public Dictionary(){}
+	public Dictionary(String title)
+	{
+		this.title = title;
+	}
+
+	public void setTitle(String title)
+	{
+		this.title = title;
+	}
+	public void setCheckOutDate(String checkOutDate)
+	{
+		this.checkOutDate = checkOutDate;
+	}
+	public void setBorrower(String borrower)
+	{
+		this.borrower = borrower;
+	}
+	public void setState(byte state)
+	{
+		this.state = state;
+	}
+	public String getTitle()
+	{
+		return this.title;
+	}
+	public String getCheckOutDate()
+	{
+		return this.checkOutDate;
+	}
+	public String getBorrower()
+	{
+		return this.borrower;
+	}
+	public byte getState()
+	{
+		return this.state;
+	}
+	public void checkOut(String borrower, String date)
+	{
+		if(state != 0)
+			return;
+		this.borrower = borrower;
+		this.checkOutDate = date;
+		byte state = 1;
+		System.out.println(borrower + "가 "+this.title+"을 "+date+"에 빌렸습니다.");
+	}
+	public void checkIn()
+	{
+		this.state = 0;
+		System.out.println(this.borrower+"가 "+ this.title+"을 반납하셨습니다.");
+		this.borrower = null;
+		this.checkOutDate = null;
+	}
+}
+',
+'C:\test\fileEx7.txt',
+1432734257906,
+129,
+788);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex8',
+'public class Rectangle implements Transformable 
+{
+	private int x;
+	private int y;
+	private int width;
+	private int height;
+
+	public Rectangle(){}
+	public Rectangle(int x, int y, int width, int height)
+	{
+		this.x = x;
+		this.y = y;
+		this.width = width;
+		this.height = height;
+	}
+	public void setX(int x)
+	{
+		this.x = x;
+	}
+	public void setY(int y)
+	{
+		this.y = y;
+	}
+	public void setWidth(int width)
+	{
+		this.width = width;
+	}
+	public void setHeight(int height)
+	{
+		this.height = height;
+	}
+	public int getX()
+	{
+		return this.x;
+	}
+	public int getY()
+	{
+		return this.y;
+	}
+	public int getWidth()
+	{
+		return this.width;
+	}
+	public int getHeight()
+	{
+		return this.height;
+	}
+	public void resize(int width, int height)
+	{
+		this.width = width;
+		this.height = height;
+	}
+	public void moveTo(int x, int y)
+	{
+		this.x = x;
+		this.y = y;
+	}
+	public void moveBy(int xOffset, int yOffset)
+	{
+		this.x += xOffset;
+		this.y += yOffset;
+	}
+}
+',
+'C:\test\fileEx8.txt',
+1432734257931,
+136,
+598);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex9',
+'import java.util.*;
+public class CalendarExample2 
+{
+	public static void main(String[] args) 
+	{
+		Calendar calendar = new GregorianCalendar(); 
+		//GregorianCalendar() Constructs a default GregorianCalendar using the current time in the default time zone with the default locale.
+		TimeZone timeZone = TimeZone.getTimeZone("Europe/London"); //TimeZone	getTimeZone() Gets the time zone.
+		calendar.setTimeZone(timeZone);		//void	setTimeZone(TimeZone zone) Sets the time zone with the given time zone value.
+		int year = calendar.get(Calendar.YEAR);
+		System.out.printf("%d년",year);
+	}
+}
+',
+'C:\test\fileEx9.txt',
+1432734257943,
+72,
+437);
+
+INSERT INTO fileexinfo
+values(fileexinfo_seq.nextVal,
+'fileex10',
+'import java.lang.reflect.*;
+import java.util.*;
+
+/* Serializable, Cloneable, Iterable<E>, Collection<E>, List<E>, RandomAccess */
+
+public class collectionTest  
+{
+	public static void main(String[] args) 
+	{
+		ArrayList<String> arr = new ArrayList<String>();	//ArrayList()Constructs an empty list with an initial capacity of ten.
+
+		Class cls = arr.getClass();
+		System.out.println(cls.getName());
+		Method method[] = cls.getDeclaredMethods();
+		for(int i = 0 ; i < method.length ; i++)
+		{
+			System.out.println("  " + method[i]);
+		}
+		arr.add("what");	// public boolean add(E e) Appends the specified element to the end of this list.
+		arr.add("the");		
+		arr.add("hell");
+		Iterator<String> iterator = arr.iterator();	//iterator() Returns an iterator over the elements in this list in proper sequence.
+		while(iterator.hasNext())
+		{
+			String str = iterator.next();	//E next() Returns the next element in the iteration.
+			System.out.println(str);
+		}
+	}
+}
+',
+'C:\test\fileEx10.txt',
+1432734257965,
+132,
+656);
+
+
+
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,1, 1, 180000, 99, 635);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,2, 2, 200000, 61, 392);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,3, 3, 210000, 137, 814);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,4, 4, 160000, 42, 242);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,5, 5, 400000, 70, 397);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,6, 6, 560000, 98, 640);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,7, 7, 304000, 129, 788);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,8, 8, 215000, 136, 598);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,9, 9, 150000, 72,  437);
+
+INSERT INTO fileexresinfo
+values(fileexresinfo_seq.nextVal,10, 10, 500000, 132, 656);
+
+
+
+
+
+insert into wordtypelist values(wordtypelist_seq.nextval,'mistypo');
+insert into wordtypelist values(wordtypelist_seq.nextval,'java.lang');
+insert into wordtypelist values(wordtypelist_seq.nextval,'java.util');
+insert into wordtypelist values(wordtypelist_seq.nextval,'java.io');
+
+
+
+
+
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'Closeable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'DataInput');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'DataOutput');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'DataInput');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'Externalizable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FileFilter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FilenameFilter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'Flushable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectInputValidation');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectOutput');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectStreamConstants');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'Serializable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'BufferedInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'BufferedOutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'BufferedReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'BufferedWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ByteArrayInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ByteArrayOutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'CharArrayReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'CharArrayWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'Console');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'DataInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'DataOutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'File');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FileDescriptor');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FileInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FileOutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FilePermission');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FileReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FileWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FilterInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FilterOutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FilterReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FilterWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'InputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'InputStreamReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'LineNumberInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'LineNumberReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectInputStream.GetField');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectOutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectOutputStream.PutField');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectStreamClass');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectStreamField');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'OutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'OutputStreamWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PipedInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PipedOutputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PipedReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PipedWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PrintStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PrintWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PushbackInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'PushbackReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'RandomAccessFile');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'Reader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'SequenceInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'SerializablePermission');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'StreamTokenizer');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'StringBufferInputStream');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'StringReader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'StringWriter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'Writer');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'CharConversionException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'EOFException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'FileNotFoundException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'InterruptedIOException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'InvalidClassException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'InvalidObjectException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'IOException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'NotActiveException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'NotSerializableException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'ObjectStreamException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'OptionalDataException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'StreamCorruptedException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'SyncFailedException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'UnsupportedEncodingException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'UTFDataFormatException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'WriteAbortedException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'4' ,'IOError');
+
+
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Collection');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Comparator');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Deque');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Enumeration');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'EventListener');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Formattable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Iterator');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'List');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ListIterator');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Map');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Map.Entry');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'NavigableMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'NavigableSet);
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Observer');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Queue');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'RandomAccess');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Set');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'SortedMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'SortedSet');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractCollection');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractList');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractMap.SimpleEntry');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractMap.SimpleImmutableEntry');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractQueue');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractSequentialList');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'AbstractSet');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ArrayDeque');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ArrayList');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Arrays');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'BitSet');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Calendar');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Collections');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Currency');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Date');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Dictionary');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'EnumMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'EnumSet');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'EventListenerProxy');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'EventObject');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'FormattableFlags');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Formatter');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'GregorianCalendar');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'HashMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'HashSet');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Hashtable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IdentityHashMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'LinkedHashMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'LinkedHashSet');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'LinkedList');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ListResourceBundle');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Locale');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Locale.Builder');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Objects');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Observable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'PriorityQueue');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Properties');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'PropertyPermission');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'PropertyResourceBundle');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Random');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ResourceBundle');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ResourceBundle.Control');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Scanner');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ServiceLoader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'SimpleTimeZone');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Stack');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'StringTokenizer');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Timer');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'TimerTask');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'TimeZone');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'TreeMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'TreeSet');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'UUID');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Vector');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'WeakHashMap');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Formatter.BigDecimalLayoutForm');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'Locale.Category');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ConcurrentModificationException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'DuplicateFormatFlagsException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'EmptyStackException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'FormatFlagsConversionMismatchException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'FormatterClosedException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IllegalFormatCodePointException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IllegalFormatConversionException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IllegalFormatException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IllegalFormatFlagsException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IllegalFormatPrecisionException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IllegalFormatWidthException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'IllformedLocaleException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'InputMismatchException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'InvalidPropertiesFormatException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'MissingFormatArgumentException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'MissingFormatWidthException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'MissingResourceException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'NoSuchElementException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'TooManyListenersException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'UnknownFormatConversionException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'UnknownFormatFlagsException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'3' ,'ServiceConfigurationError');
+
+
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Appendable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'AutoCloseable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'CharSequence');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Cloneable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Comparable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Iterable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Readable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Runnable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Thread.UncaughtExceptionHandler');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Boolean');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Byte');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Character');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Character.Subset');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Character.UnicodeBlock');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Class');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ClassLoader');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ClassValue');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Compiler');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Double');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Enum');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Float');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'InheritableThreadLocal');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Integer');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Long');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Math');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Number');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Object');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Package');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Process');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ProcessBuilder');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ProcessBuilder.Redirect');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Runtime');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'RuntimePermission');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'SecurityManager');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Short');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'StackTraceElement');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'StrictMath');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'String');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'StringBuffer');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'StringBuilder');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'System');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Thread');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ThreadGroup');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ThreadLocal');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Throwable');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Void');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Character.UnicodeScript');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ProcessBuilder.Redirect.Type');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Thread.State');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ArithmeticException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ArrayIndexOutOfBoundsException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ArrayStoreException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ClassCastException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ClassNotFoundException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'CloneNotSupportedException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'EnumConstantNotPresentException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Exception');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IllegalAccessException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IllegalArgumentException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IllegalMonitorStateException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IllegalStateException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IllegalThreadStateException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IndexOutOfBoundsException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'InstantiationException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'InterruptedException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NegativeArraySizeException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NoSuchFieldException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NoSuchMethodException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NullPointerException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NumberFormatException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ReflectiveOperationException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'RuntimeException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'SecurityException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'StringIndexOutOfBoundsException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'TypeNotPresentException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'UnsupportedOperationException');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'AbstractMethodError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'AssertionError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'BootstrapMethodError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ClassCircularityError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ClassFormatError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'Error');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ExceptionInInitializerError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IllegalAccessError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'IncompatibleClassChangeError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'InstantiationError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'InternalError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'LinkageError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NoClassDefFoundError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NoSuchFieldError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'NoSuchMethodError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'OutOfMemoryError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'StackOverflowError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'ThreadDeath');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'UnknownError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'UnsatisfiedLinkError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'UnsupportedClassVersionError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'VerifyError');
+insert into wordexinfo values( wordexinfo_seq.nextval ,'2' ,'VirtualMachineError');
+
+
+
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '1', 'public');
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '2', 'system');
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '3', 'void');
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '4', 'String');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '5', 'static');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '6', 'iterator');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '7', 'arraylist');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '8', 'add');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '9', 'delete');
+
+
+INSERT INTO mistypoinfo
+VALUES(mistypoinfo_seq.nextVal, '1', '10', 'public');
+
+
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '1', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '2', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '3', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '4', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '5', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '6', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '7', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '8', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '9', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '10', 10, 3);
+
+
+
+
+
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'1' ,'',10,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'2' ,'',13,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'3' ,'',12,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'4' ,'',12,12);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'5' ,'',15,7);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'6' ,'',16,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'7' ,'',12,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'8' ,'',12,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'9' ,'',14,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'10' ,'',13,3);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'11' ,'',12,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'12' ,'',12,7);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'13' ,'',12,8);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'14' ,'',32,3);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'15' ,'',12,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'16' ,'',12,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'17' ,'',21,3);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'18' ,'',12,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'19' ,'',12,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'20' ,'',10,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'21' ,'',10,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'22' ,'',10,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'23' ,'',21,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'24' ,'',21,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'25' ,'',21,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'26' ,'',10,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'27' ,'',21,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'28' ,'',12,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'29' ,'',10,10);
+
+
+
+
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'70' ,'', 12 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'71' ,'', 2,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'72' ,'', 1,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'73' ,'', 3 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'74' ,'', 4 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'75' ,'', 4 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'76' ,'', 1 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'77' ,'',5,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'78' ,'', 4,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'79' ,'',3,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'80' ,'',4,0);
+
+
+
+
+commit;
+

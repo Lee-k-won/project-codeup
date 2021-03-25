@@ -1,0 +1,44 @@
+CREATE OR REPLACE VIEW resinfo
+AS
+SELECT MIN(typingtime) mintypingtime ,fileexinfocode 
+FROM fileexresinfo
+GROUP BY fileexinfocode
+ORDER BY fileexinfocode ;
+
+
+CREATE OR REPLACE VIEW WPMAnalysisInfo
+AS
+SELECT trialNum, ROUND(typedchars/(typingtime/60000)/5,0) WPM
+from fileexresinfo
+with read only;
+
+
+CREATE OR REPLACE VIEW AnalysisInfo
+AS
+SELECT sum(f.typedChars) totalChars, sum(f.typedwords)+sum(cumInputNum) totalWords
+FROM fileexresinfo f, wordexresinfo w
+with read only;
+
+
+CREATE OR REPLACE VIEW WordsAnalysisInfo
+AS
+SELECT 
+CASE
+ WHEN wr.wordexinfocode IS NOT NULL THEN (select wordexcontent from wordexinfo wi where wr.wordexinfocode = wi.wordexinfocode)
+ WHEN wr.wordexinfocode IS NULL THEN (select mistypo from mistypoinfo mi where wr.mistypoinfocode = mi.mistypoinfocode)
+END wordexcontent,
+ round(wr.mistyponum/wr.cuminputnum*100,0) accuracy
+FROM
+wordexresinfo wr
+with read only;
+
+
+CREATE OR REPLACE VIEW simplefileExinfo
+AS
+SELECT fileExinfoName, fileExInfoCode, 
+CASE 
+WHEN totalcharnum < 500 THEN 1 
+WHEN totalcharnum < 1000 THEN 2
+WHEN totalcharnum >= 1000 THEN 3 
+END fileexinfoLevel 
+from fileexinfo;

@@ -1,0 +1,29 @@
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '1', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '2', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '3', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '4', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '5', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '6', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '7', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '8', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '9', 10, 3);
+
+insert into wordexresinfo
+values(wordexresinfo_seq.nextVal, '', '10', 10, 3);

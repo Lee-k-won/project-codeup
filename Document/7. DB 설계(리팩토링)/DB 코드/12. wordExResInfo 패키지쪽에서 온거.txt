@@ -1,0 +1,50 @@
+
+
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'1' ,'',10,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'2' ,'',13,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'3' ,'',12,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'4' ,'',12,12);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'5' ,'',15,7);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'6' ,'',16,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'7' ,'',12,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'8' ,'',12,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'9' ,'',14,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'10' ,'',13,3);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'11' ,'',12,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'12' ,'',12,7);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'13' ,'',12,8);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'14' ,'',32,3);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'15' ,'',12,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'16' ,'',12,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'17' ,'',21,3);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'18' ,'',12,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'19' ,'',12,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'20' ,'',10,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'21' ,'',10,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'22' ,'',10,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'23' ,'',21,1);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'24' ,'',21,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'25' ,'',21,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'26' ,'',10,4);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'27' ,'',21,2);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'28' ,'',12,5);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'29' ,'',10,10);
+
+
+
+
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'70' ,'', 12 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'71' ,'', 2,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'72' ,'', 1,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'73' ,'', 3 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'74' ,'', 4 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'75' ,'', 4 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'76' ,'', 1 ,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'77' ,'',5,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'78' ,'', 4,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'79' ,'',3,0);
+insert into wordexresinfo values( wordexresinfo_seq.nextval ,'80' ,'',4,0);
+
+
+
+
